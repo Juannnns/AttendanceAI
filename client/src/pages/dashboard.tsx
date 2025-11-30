@@ -8,7 +8,9 @@ import {
   TrendingDown,
   ArrowRight,
   ClipboardList,
-  Camera
+  Camera,
+  CalendarDays,
+  BarChart3
 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -24,7 +27,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
 import type { DashboardStats, AttendanceWithEmployee } from "@shared/schema";
+import { format, parseISO } from "date-fns";
+import { es } from "date-fns/locale";
+
+type WeeklyStat = {
+  date: string;
+  present: number;
+  late: number;
+  absent: number;
+};
 
 function MetricCard({
   title,
@@ -117,6 +146,21 @@ function formatTime(time: string | null | undefined) {
   return time;
 }
 
+function formatDayName(dateStr: string) {
+  try {
+    const date = parseISO(dateStr);
+    return format(date, "EEE", { locale: es });
+  } catch {
+    return dateStr;
+  }
+}
+
+const COLORS = {
+  present: "#22c55e",
+  late: "#f59e0b",
+  absent: "#ef4444"
+};
+
 export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
@@ -126,10 +170,36 @@ export default function DashboardPage() {
     queryKey: ["/api/attendance/recent?limit=10"],
   });
 
+  const { data: weeklyStats = [], isLoading: weeklyLoading } = useQuery<WeeklyStat[]>({
+    queryKey: ["/api/dashboard/weekly-stats"],
+  });
+
+  const { data: monthlyStats = [], isLoading: monthlyLoading } = useQuery<WeeklyStat[]>({
+    queryKey: ["/api/dashboard/monthly-stats"],
+  });
+
+  const formattedWeeklyStats = weeklyStats.map(stat => ({
+    ...stat,
+    day: formatDayName(stat.date),
+    puntualidad: stat.present + stat.late > 0 
+      ? Math.round((stat.present / (stat.present + stat.late)) * 100)
+      : 0
+  }));
+
+  const pieData = stats ? [
+    { name: "Presentes", value: stats.presentToday - (stats.lateArrivals || 0), fill: COLORS.present },
+    { name: "Tarde", value: stats.lateArrivals, fill: COLORS.late },
+    { name: "Ausentes", value: stats.absences, fill: COLORS.absent },
+  ] : [];
+
+  const averagePunctuality = formattedWeeklyStats.length > 0
+    ? Math.round(formattedWeeklyStats.reduce((sum, s) => sum + s.puntualidad, 0) / formattedWeeklyStats.length)
+    : 0;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-bold" data-testid="text-dashboard-title">Dashboard</h1>
         <p className="text-muted-foreground">
           Vista general de asistencia del dia de hoy
         </p>
@@ -178,6 +248,170 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-lg font-medium flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Tendencia Semanal
+                </CardTitle>
+                <CardDescription>Asistencia de los ultimos 7 dias</CardDescription>
+              </div>
+              <Badge variant="outline" className="font-mono">
+                Prom: {averagePunctuality}%
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {weeklyLoading ? (
+              <div className="h-64 flex items-center justify-center">
+                <Skeleton className="h-full w-full" />
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={formattedWeeklyStats}>
+                  <defs>
+                    <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.present} stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor={COLORS.present} stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="colorLate" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.late} stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor={COLORS.late} stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="day" 
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis 
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  />
+                  <Legend />
+                  <Area 
+                    type="monotone" 
+                    dataKey="present" 
+                    name="Presentes"
+                    stroke={COLORS.present} 
+                    fillOpacity={1} 
+                    fill="url(#colorPresent)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="late" 
+                    name="Tarde"
+                    stroke={COLORS.late} 
+                    fillOpacity={1} 
+                    fill="url(#colorLate)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-medium flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Distribucion de Hoy
+            </CardTitle>
+            <CardDescription>Estado actual de asistencia</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {statsLoading ? (
+              <div className="h-64 flex items-center justify-center">
+                <Skeleton className="h-48 w-48 rounded-full" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center">
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">Puntualidad Semanal</CardTitle>
+          <CardDescription>Porcentaje de empleados a tiempo por dia</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {weeklyLoading ? (
+            <div className="h-48">
+              <Skeleton className="h-full w-full" />
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={formattedWeeklyStats}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis 
+                  dataKey="day" 
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                />
+                <YAxis 
+                  domain={[0, 100]}
+                  tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number) => [`${value}%`, 'Puntualidad']}
+                />
+                <Bar 
+                  dataKey="puntualidad" 
+                  fill="hsl(var(--primary))"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
@@ -285,6 +519,12 @@ export default function DashboardPage() {
               <Link href="/attendance" data-testid="link-quick-attendance">
                 <ClipboardList className="mr-2 h-4 w-4" />
                 Ver Registros
+              </Link>
+            </Button>
+            <Button className="w-full justify-start" variant="outline" asChild>
+              <Link href="/reports" data-testid="link-quick-reports">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Reportes
               </Link>
             </Button>
           </CardContent>

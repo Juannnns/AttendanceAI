@@ -5,7 +5,8 @@ import {
   ClipboardList, 
   Camera,
   LogOut,
-  ScanFace
+  ScanFace,
+  BarChart3
 } from "lucide-react";
 import {
   Sidebar,
@@ -42,6 +43,11 @@ const navigationItems = [
     title: "Registro Facial",
     url: "/check-in",
     icon: Camera,
+  },
+  {
+    title: "Reportes",
+    url: "/reports",
+    icon: BarChart3,
   },
 ];
 

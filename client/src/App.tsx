@@ -16,6 +16,7 @@ import DashboardPage from "@/pages/dashboard";
 import EmployeesPage from "@/pages/employees";
 import AttendancePage from "@/pages/attendance";
 import CheckInPage from "@/pages/check-in";
+import ReportsPage from "@/pages/reports";
 import NotFound from "@/pages/not-found";
 
 import type { LoginCredentials } from "@shared/schema";
@@ -72,6 +73,7 @@ function ProtectedRoutes({
         <Route path="/employees" component={EmployeesPage} />
         <Route path="/attendance" component={AttendancePage} />
         <Route path="/check-in" component={CheckInPage} />
+        <Route path="/reports" component={ReportsPage} />
         <Route component={NotFound} />
       </Switch>
     </AuthenticatedLayout>

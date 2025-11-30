@@ -51,6 +51,57 @@ export async function registerRoutes(
     }
   });
 
+  // Weekly stats for analytics charts
+  app.get("/api/dashboard/weekly-stats", async (req, res) => {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 6);
+      
+      const stats = await storage.getWeeklyStats(
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0]
+      );
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Error al obtener estadisticas semanales" });
+    }
+  });
+
+  // Monthly stats for analytics
+  app.get("/api/dashboard/monthly-stats", async (req, res) => {
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 29);
+      
+      const stats = await storage.getWeeklyStats(
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0]
+      );
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Error al obtener estadisticas mensuales" });
+    }
+  });
+
+  // Attendance by date range
+  app.get("/api/attendance/range", async (req, res) => {
+    try {
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "Se requieren fechas de inicio y fin" });
+      }
+      
+      const records = await storage.getAttendanceByDateRange(startDate, endDate);
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ message: "Error al obtener registros" });
+    }
+  });
+
   // Employees CRUD
   app.get("/api/employees", async (req, res) => {
     try {

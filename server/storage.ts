@@ -6,17 +6,20 @@ import {
   type AttendanceRecord,
   type InsertAttendance,
   type DashboardStats,
-  type AttendanceWithEmployee
+  type AttendanceWithEmployee,
+  users,
+  employees,
+  attendanceRecords
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   
-  // Employees
   getAllEmployees(): Promise<Employee[]>;
   getEmployee(id: string): Promise<Employee | undefined>;
   getEmployeeByEmail(email: string): Promise<Employee | undefined>;
@@ -25,42 +28,229 @@ export interface IStorage {
   deleteEmployee(id: string): Promise<boolean>;
   getEmployeeByEmbedding(embedding: string): Promise<Employee | undefined>;
   
-  // Attendance
   getAllAttendanceRecords(): Promise<AttendanceRecord[]>;
   getAttendanceByDate(date: string): Promise<AttendanceWithEmployee[]>;
   getRecentAttendance(limit: number): Promise<AttendanceWithEmployee[]>;
   getAttendanceByEmployee(employeeId: string, date: string): Promise<AttendanceRecord | undefined>;
   createAttendance(attendance: InsertAttendance): Promise<AttendanceRecord>;
   updateAttendance(id: string, attendance: Partial<InsertAttendance>): Promise<AttendanceRecord | undefined>;
+  getAttendanceByDateRange(startDate: string, endDate: string): Promise<AttendanceWithEmployee[]>;
   
-  // Dashboard
   getDashboardStats(date: string): Promise<DashboardStats>;
+  getWeeklyStats(startDate: string, endDate: string): Promise<Array<{date: string; present: number; late: number; absent: number}>>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private employees: Map<string, Employee>;
-  private attendanceRecords: Map<string, AttendanceRecord>;
+export class DatabaseStorage implements IStorage {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
 
-  constructor() {
-    this.users = new Map();
-    this.employees = new Map();
-    this.attendanceRecords = new Map();
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = randomUUID();
+    const [user] = await db.insert(users).values({ ...insertUser, id }).returning();
+    return user;
+  }
+
+  async getAllEmployees(): Promise<Employee[]> {
+    return db.select().from(employees);
+  }
+
+  async getEmployee(id: string): Promise<Employee | undefined> {
+    const [employee] = await db.select().from(employees).where(eq(employees.id, id));
+    return employee;
+  }
+
+  async getEmployeeByEmail(email: string): Promise<Employee | undefined> {
+    const [employee] = await db.select().from(employees).where(eq(employees.email, email));
+    return employee;
+  }
+
+  async createEmployee(insertEmployee: InsertEmployee): Promise<Employee> {
+    const id = randomUUID();
+    const [employee] = await db.insert(employees).values({ ...insertEmployee, id }).returning();
+    return employee;
+  }
+
+  async updateEmployee(id: string, updates: Partial<InsertEmployee>): Promise<Employee | undefined> {
+    const [employee] = await db
+      .update(employees)
+      .set(updates)
+      .where(eq(employees.id, id))
+      .returning();
+    return employee;
+  }
+
+  async deleteEmployee(id: string): Promise<boolean> {
+    await db.delete(attendanceRecords).where(eq(attendanceRecords.employeeId, id));
+    const result = await db.delete(employees).where(eq(employees.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getEmployeeByEmbedding(embedding: string): Promise<Employee | undefined> {
+    const [employee] = await db
+      .select()
+      .from(employees)
+      .where(eq(employees.faceEmbedding, embedding));
+    return employee;
+  }
+
+  async getAllAttendanceRecords(): Promise<AttendanceRecord[]> {
+    return db.select().from(attendanceRecords);
+  }
+
+  async getAttendanceByDate(date: string): Promise<AttendanceWithEmployee[]> {
+    const records = await db
+      .select()
+      .from(attendanceRecords)
+      .innerJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+      .where(eq(attendanceRecords.date, date));
     
-    // Create default admin user
+    return records.map(r => ({
+      ...r.attendance_records,
+      employee: r.employees
+    }));
+  }
+
+  async getRecentAttendance(limit: number): Promise<AttendanceWithEmployee[]> {
+    const records = await db
+      .select()
+      .from(attendanceRecords)
+      .innerJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+      .orderBy(desc(attendanceRecords.date), desc(attendanceRecords.checkIn))
+      .limit(limit);
+    
+    return records.map(r => ({
+      ...r.attendance_records,
+      employee: r.employees
+    }));
+  }
+
+  async getAttendanceByEmployee(employeeId: string, date: string): Promise<AttendanceRecord | undefined> {
+    const [record] = await db
+      .select()
+      .from(attendanceRecords)
+      .where(and(eq(attendanceRecords.employeeId, employeeId), eq(attendanceRecords.date, date)));
+    return record;
+  }
+
+  async createAttendance(insertAttendance: InsertAttendance): Promise<AttendanceRecord> {
+    const id = randomUUID();
+    const [record] = await db
+      .insert(attendanceRecords)
+      .values({ ...insertAttendance, id })
+      .returning();
+    return record;
+  }
+
+  async updateAttendance(id: string, updates: Partial<InsertAttendance>): Promise<AttendanceRecord | undefined> {
+    const [record] = await db
+      .update(attendanceRecords)
+      .set(updates)
+      .where(eq(attendanceRecords.id, id))
+      .returning();
+    return record;
+  }
+
+  async getAttendanceByDateRange(startDate: string, endDate: string): Promise<AttendanceWithEmployee[]> {
+    const records = await db
+      .select()
+      .from(attendanceRecords)
+      .innerJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+      .where(and(
+        gte(attendanceRecords.date, startDate),
+        lte(attendanceRecords.date, endDate)
+      ))
+      .orderBy(desc(attendanceRecords.date));
+    
+    return records.map(r => ({
+      ...r.attendance_records,
+      employee: r.employees
+    }));
+  }
+
+  async getDashboardStats(date: string): Promise<DashboardStats> {
+    const allEmployees = await db.select().from(employees);
+    const totalEmployees = allEmployees.length;
+    
+    const todayRecords = await db
+      .select()
+      .from(attendanceRecords)
+      .where(eq(attendanceRecords.date, date));
+    
+    const presentToday = todayRecords.filter(r => r.status === "present" || r.status === "late").length;
+    const lateArrivals = todayRecords.filter(r => r.status === "late").length;
+    const absences = totalEmployees - presentToday;
+    const onTimeCount = todayRecords.filter(r => r.status === "present").length;
+    const onTimePercentage = presentToday > 0 
+      ? Math.round((onTimeCount / presentToday) * 100) 
+      : 0;
+
+    return {
+      presentToday,
+      lateArrivals,
+      absences,
+      onTimePercentage
+    };
+  }
+
+  async getWeeklyStats(startDate: string, endDate: string): Promise<Array<{date: string; present: number; late: number; absent: number}>> {
+    const allEmployees = await db.select().from(employees);
+    const totalEmployees = allEmployees.length;
+    
+    const records = await db
+      .select()
+      .from(attendanceRecords)
+      .where(and(
+        gte(attendanceRecords.date, startDate),
+        lte(attendanceRecords.date, endDate)
+      ));
+    
+    const statsByDate = new Map<string, {present: number; late: number; absent: number}>();
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      statsByDate.set(dateStr, { present: 0, late: 0, absent: totalEmployees });
+    }
+    
+    records.forEach(r => {
+      const stats = statsByDate.get(r.date);
+      if (stats) {
+        if (r.status === "present") {
+          stats.present++;
+          stats.absent--;
+        } else if (r.status === "late") {
+          stats.late++;
+          stats.absent--;
+        }
+      }
+    });
+    
+    return Array.from(statsByDate.entries())
+      .map(([date, stats]) => ({ date, ...stats }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+}
+
+async function initializeDatabase() {
+  const existingAdmin = await db.select().from(users).where(eq(users.username, "admin"));
+  
+  if (existingAdmin.length === 0) {
     const adminId = randomUUID();
-    this.users.set(adminId, {
+    await db.insert(users).values({
       id: adminId,
       username: "admin",
       password: "admin123",
       role: "admin"
     });
     
-    // Create sample employees
-    this.seedSampleData();
-  }
-
-  private seedSampleData() {
     const sampleEmployees: Omit<Employee, 'id'>[] = [
       {
         firstName: "Maria",
@@ -114,235 +304,30 @@ export class MemStorage implements IStorage {
       },
     ];
 
-    sampleEmployees.forEach(emp => {
+    const employeeIds: string[] = [];
+    for (const emp of sampleEmployees) {
       const id = randomUUID();
-      this.employees.set(id, { ...emp, id });
-    });
+      employeeIds.push(id);
+      await db.insert(employees).values({ ...emp, id });
+    }
 
-    // Create today's attendance records
     const today = new Date().toISOString().split('T')[0];
-    const employeeIds = Array.from(this.employees.keys());
-    
-    // Employee 1: Present on time
-    if (employeeIds[0]) {
-      const id1 = randomUUID();
-      this.attendanceRecords.set(id1, {
-        id: id1,
-        employeeId: employeeIds[0],
-        date: today,
-        checkIn: "08:45",
-        checkOut: null,
-        status: "present",
-        confidence: 0.95
-      });
+    const attendanceData = [
+      { employeeId: employeeIds[0], date: today, checkIn: "08:45", checkOut: null, status: "present", confidence: 0.95 },
+      { employeeId: employeeIds[1], date: today, checkIn: "09:15", checkOut: null, status: "late", confidence: 0.92 },
+      { employeeId: employeeIds[2], date: today, checkIn: "08:30", checkOut: "17:30", status: "present", confidence: 0.98 },
+      { employeeId: employeeIds[3], date: today, checkIn: null, checkOut: null, status: "absent", confidence: null },
+      { employeeId: employeeIds[4], date: today, checkIn: "08:55", checkOut: null, status: "present", confidence: 0.89 },
+    ];
+
+    for (const att of attendanceData) {
+      await db.insert(attendanceRecords).values({ ...att, id: randomUUID() });
     }
-
-    // Employee 2: Late
-    if (employeeIds[1]) {
-      const id2 = randomUUID();
-      this.attendanceRecords.set(id2, {
-        id: id2,
-        employeeId: employeeIds[1],
-        date: today,
-        checkIn: "09:15",
-        checkOut: null,
-        status: "late",
-        confidence: 0.92
-      });
-    }
-
-    // Employee 3: Present on time
-    if (employeeIds[2]) {
-      const id3 = randomUUID();
-      this.attendanceRecords.set(id3, {
-        id: id3,
-        employeeId: employeeIds[2],
-        date: today,
-        checkIn: "08:30",
-        checkOut: "17:30",
-        status: "present",
-        confidence: 0.98
-      });
-    }
-
-    // Employee 4: Absent
-    if (employeeIds[3]) {
-      const id4 = randomUUID();
-      this.attendanceRecords.set(id4, {
-        id: id4,
-        employeeId: employeeIds[3],
-        date: today,
-        checkIn: null,
-        checkOut: null,
-        status: "absent",
-        confidence: null
-      });
-    }
-
-    // Employee 5: Present
-    if (employeeIds[4]) {
-      const id5 = randomUUID();
-      this.attendanceRecords.set(id5, {
-        id: id5,
-        employeeId: employeeIds[4],
-        date: today,
-        checkIn: "08:55",
-        checkOut: null,
-        status: "present",
-        confidence: 0.89
-      });
-    }
-  }
-
-  // Users
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id, role: insertUser.role || "admin" };
-    this.users.set(id, user);
-    return user;
-  }
-
-  // Employees
-  async getAllEmployees(): Promise<Employee[]> {
-    return Array.from(this.employees.values());
-  }
-
-  async getEmployee(id: string): Promise<Employee | undefined> {
-    return this.employees.get(id);
-  }
-
-  async getEmployeeByEmail(email: string): Promise<Employee | undefined> {
-    return Array.from(this.employees.values()).find(
-      (emp) => emp.email.toLowerCase() === email.toLowerCase()
-    );
-  }
-
-  async createEmployee(insertEmployee: InsertEmployee): Promise<Employee> {
-    const id = randomUUID();
-    const employee: Employee = { ...insertEmployee, id };
-    this.employees.set(id, employee);
-    return employee;
-  }
-
-  async updateEmployee(id: string, updates: Partial<InsertEmployee>): Promise<Employee | undefined> {
-    const existing = this.employees.get(id);
-    if (!existing) return undefined;
     
-    const updated: Employee = { ...existing, ...updates };
-    this.employees.set(id, updated);
-    return updated;
-  }
-
-  async deleteEmployee(id: string): Promise<boolean> {
-    const existed = this.employees.has(id);
-    this.employees.delete(id);
-    // Also delete their attendance records
-    for (const [recordId, record] of this.attendanceRecords.entries()) {
-      if (record.employeeId === id) {
-        this.attendanceRecords.delete(recordId);
-      }
-    }
-    return existed;
-  }
-
-  async getEmployeeByEmbedding(embedding: string): Promise<Employee | undefined> {
-    // In a real implementation, this would compare embeddings using cosine similarity
-    // For now, we'll do a simple string match for demonstration
-    return Array.from(this.employees.values()).find(
-      (emp) => emp.faceEmbedding === embedding
-    );
-  }
-
-  // Attendance
-  async getAllAttendanceRecords(): Promise<AttendanceRecord[]> {
-    return Array.from(this.attendanceRecords.values());
-  }
-
-  async getAttendanceByDate(date: string): Promise<AttendanceWithEmployee[]> {
-    const records = Array.from(this.attendanceRecords.values())
-      .filter((record) => record.date === date);
-    
-    return records.map(record => {
-      const employee = this.employees.get(record.employeeId);
-      return {
-        ...record,
-        employee: employee!
-      };
-    }).filter(r => r.employee);
-  }
-
-  async getRecentAttendance(limit: number): Promise<AttendanceWithEmployee[]> {
-    const records = Array.from(this.attendanceRecords.values())
-      .sort((a, b) => {
-        // Sort by date descending, then by check-in time
-        if (a.date !== b.date) return b.date.localeCompare(a.date);
-        const aTime = a.checkIn || "23:59";
-        const bTime = b.checkIn || "23:59";
-        return bTime.localeCompare(aTime);
-      })
-      .slice(0, limit);
-    
-    return records.map(record => {
-      const employee = this.employees.get(record.employeeId);
-      return {
-        ...record,
-        employee: employee!
-      };
-    }).filter(r => r.employee);
-  }
-
-  async getAttendanceByEmployee(employeeId: string, date: string): Promise<AttendanceRecord | undefined> {
-    return Array.from(this.attendanceRecords.values()).find(
-      (record) => record.employeeId === employeeId && record.date === date
-    );
-  }
-
-  async createAttendance(insertAttendance: InsertAttendance): Promise<AttendanceRecord> {
-    const id = randomUUID();
-    const record: AttendanceRecord = { ...insertAttendance, id };
-    this.attendanceRecords.set(id, record);
-    return record;
-  }
-
-  async updateAttendance(id: string, updates: Partial<InsertAttendance>): Promise<AttendanceRecord | undefined> {
-    const existing = this.attendanceRecords.get(id);
-    if (!existing) return undefined;
-    
-    const updated: AttendanceRecord = { ...existing, ...updates };
-    this.attendanceRecords.set(id, updated);
-    return updated;
-  }
-
-  // Dashboard
-  async getDashboardStats(date: string): Promise<DashboardStats> {
-    const todayRecords = await this.getAttendanceByDate(date);
-    const totalEmployees = this.employees.size;
-    
-    const presentToday = todayRecords.filter(r => r.status === "present" || r.status === "late").length;
-    const lateArrivals = todayRecords.filter(r => r.status === "late").length;
-    const absences = totalEmployees - presentToday;
-    const onTimeCount = todayRecords.filter(r => r.status === "present").length;
-    const onTimePercentage = presentToday > 0 
-      ? Math.round((onTimeCount / presentToday) * 100) 
-      : 0;
-
-    return {
-      presentToday,
-      lateArrivals,
-      absences,
-      onTimePercentage
-    };
+    console.log("Database initialized with sample data");
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
+
+initializeDatabase().catch(console.error);
