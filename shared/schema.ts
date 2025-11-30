@@ -1,13 +1,13 @@
-import { pgTable, text, varchar, timestamp, real } from "drizzle-orm/pg-core";
+import { mysqlTable, text, varchar, real } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // Users table for authentication
-export const users = pgTable("users", {
+export const users = mysqlTable("users", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  username: text("username").notNull().unique(),
+  username: varchar("username", { length: 100 }).notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull().default("admin"),
+  role: varchar("role", { length: 50 }).notNull().default("admin"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -20,16 +20,16 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 // Employees table
-export const employees = pgTable("employees", {
+export const employees = mysqlTable("employees", {
   id: varchar("id", { length: 36 }).primaryKey(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  email: text("email").notNull().unique(),
-  department: text("department").notNull(),
-  position: text("position").notNull(),
+  firstName: varchar("first_name", { length: 100 }).notNull(),
+  lastName: varchar("last_name", { length: 100 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  department: varchar("department", { length: 100 }).notNull(),
+  position: varchar("position", { length: 100 }).notNull(),
   photoUrl: text("photo_url"),
   faceEmbedding: text("face_embedding"),
-  status: text("status").notNull().default("active"),
+  status: varchar("status", { length: 50 }).notNull().default("active"),
 });
 
 export const insertEmployeeSchema = createInsertSchema(employees).omit({
@@ -40,13 +40,13 @@ export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
 export type Employee = typeof employees.$inferSelect;
 
 // Attendance records table
-export const attendanceRecords = pgTable("attendance_records", {
+export const attendanceRecords = mysqlTable("attendance_records", {
   id: varchar("id", { length: 36 }).primaryKey(),
   employeeId: varchar("employee_id", { length: 36 }).notNull(),
-  date: text("date").notNull(),
-  checkIn: text("check_in"),
-  checkOut: text("check_out"),
-  status: text("status").notNull().default("present"),
+  date: varchar("date", { length: 20 }).notNull(),
+  checkIn: varchar("check_in", { length: 20 }),
+  checkOut: varchar("check_out", { length: 20 }),
+  status: varchar("status", { length: 20 }).notNull().default("present"),
   confidence: real("confidence"),
 });
 

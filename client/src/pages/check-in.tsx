@@ -2,16 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  Camera,
-  UserCheck,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  RefreshCw,
-  Loader2,
-  ScanFace,
-} from "lucide-react";
+import {Camera, UserCheck, Clock, AlertCircle, CheckCircle, RefreshCw, Loader2, ScanFace, } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";

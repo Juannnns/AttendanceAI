@@ -1,49 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { 
-  Users, 
-  Clock, 
-  UserX, 
-  CheckCircle,
-  TrendingUp,
-  TrendingDown,
-  ArrowRight,
-  ClipboardList,
-  Camera,
-  CalendarDays,
-  BarChart3
-} from "lucide-react";
+import { Users, Clock, UserX, CheckCircle, TrendingUp, TrendingDown, ArrowRight, ClipboardList, Camera, CalendarDays, BarChart3 } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  PieChart,
-  Pie,
-  Cell
-} from "recharts";
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from "@/components/ui/table";
+import {AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 import type { DashboardStats, AttendanceWithEmployee } from "@shared/schema";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
