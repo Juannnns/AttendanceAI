@@ -62,6 +62,7 @@ export default function LoginPage({ onLogin, isLoading, error }: LoginPageProps)
                       <Input
                         placeholder="Ingresa tu usuario"
                         data-testid="input-username"
+                        required
                         {...field}
                       />
                     </FormControl>
@@ -82,6 +83,7 @@ export default function LoginPage({ onLogin, isLoading, error }: LoginPageProps)
                           type={showPassword ? "text" : "password"}
                           placeholder="Ingresa tu contraseña"
                           data-testid="input-password"
+                          required
                           {...field}
                         />
                         <Button
