@@ -1,0 +1,54 @@
+# ======================
+# DEPENDENCIAS
+# ======================
+node_modules/
+.pnp
+.pnp.js
+
+# ======================
+# VARIABLES DE ENTORNO
+# ======================
+.env
+.env.*
+!.env.example
+
+# ======================
+# BUILD / DIST
+# ======================
+dist/
+build/
+.out/
+.next/
+
+# ======================
+# LOGS
+# ======================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ======================
+# SISTEMA / EDITORES
+# ======================
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+*.swp
+
+# ======================
+# TYPESCRIPT
+# ======================
+*.tsbuildinfo
+
+# ======================
+# VITE
+# ======================
+vite.config.ts.timestamp-*
+
+# ======================
+# COVERAGE / TEST
+# ======================
+coverage/
