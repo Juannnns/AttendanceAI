@@ -127,19 +127,19 @@ const COLORS = {
 };
 
 export default function DashboardPage() {
-  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+  const { data: stats, isLoading: statsLoading, isError: statsError, error: statsErr } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: recentAttendance = [], isLoading: attendanceLoading } = useQuery<AttendanceWithEmployee[]>({
+  const { data: recentAttendance = [], isLoading: attendanceLoading, isError: attendanceError, error: attendanceErr } = useQuery<AttendanceWithEmployee[]>({
     queryKey: ["/api/attendance/recent?limit=10"],
   });
 
-  const { data: weeklyStats = [], isLoading: weeklyLoading } = useQuery<WeeklyStat[]>({
+  const { data: weeklyStats = [], isLoading: weeklyLoading, isError: weeklyError, error: weeklyErr } = useQuery<WeeklyStat[]>({
     queryKey: ["/api/dashboard/weekly-stats"],
   });
 
-  const { data: monthlyStats = [], isLoading: monthlyLoading } = useQuery<WeeklyStat[]>({
+  const { data: monthlyStats = [], isLoading: monthlyLoading, isError: monthlyError, error: monthlyErr } = useQuery<WeeklyStat[]>({
     queryKey: ["/api/dashboard/monthly-stats"],
   });
 
@@ -169,6 +169,17 @@ export default function DashboardPage() {
           Vista general de asistencia del dia de hoy
         </p>
       </div>
+
+      {(statsError || weeklyError || monthlyError || attendanceError) && (
+        <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium text-destructive">
+            Error al cargar datos del servidor.
+          </p>
+          <p className="text-muted-foreground">
+            {(statsErr as any)?.message || (weeklyErr as any)?.message || (monthlyErr as any)?.message || (attendanceErr as any)?.message || "Revisa la consola y el Network tab para más detalles."}
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statsLoading ? (
