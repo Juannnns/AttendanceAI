@@ -130,11 +130,6 @@ export default function LoginPage({ onLogin, isLoading, error }: LoginPageProps)
               </Button>
             </form>
           </Form>
-
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Credenciales por defecto:</p>
-            <p className="font-mono text-xs mt-1">admin / admin123</p>
-          </div>
         </CardContent>
       </Card>
     </div>
